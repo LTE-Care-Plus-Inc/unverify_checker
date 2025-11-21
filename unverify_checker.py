@@ -51,6 +51,30 @@ def validate_columns(df, required_cols, file_label):
         return f"{file_label} is missing required column(s): {', '.join(missing)}"
     return None
 
+def normalize_appointment_id(series: pd.Series) -> pd.Series:
+    """
+    Normalize Appointment IDs so they match reliably across files.
+    - Casts to string
+    - Strips leading/trailing spaces
+    - Removes a trailing '.0' (common when Excel stores IDs as floats)
+    - Converts 'nan', 'None', 'NaT' to empty strings
+    """
+    s = series.astype(str).str.strip()
+
+    # Remove trailing .0 if the value looks like a float-converted integer (e.g. "12345.0" -> "12345")
+    s = s.str.replace(r"\.0$", "", regex=True)
+
+    # Normalize obvious null-ish text values
+    s = s.replace(
+        {
+            "nan": "",
+            "NaN": "",
+            "None": "",
+            "NaT": "",
+        }
+    )
+
+    return s
 
 # --- File upload ---
 col1, col2 = st.columns(2)
@@ -86,8 +110,8 @@ if df1 is not None and df2 is not None and not err1 and not err2:
 
     if not err_cols1 and not err_cols2:
         # Normalize Appointment ID to string for safe joins
-        df1["Appointment ID"] = df1["Appointment ID"].astype(str)
-        df2["Appointment ID"] = df2["Appointment ID"].astype(str)
+        df1["Appointment ID"] = normalize_appointment_id(df1["Appointment ID"])
+        df2["Appointment ID"] = normalize_appointment_id(df2["Appointment ID"])
 
         # Inner join on Appointment ID
         merged = pd.merge(
